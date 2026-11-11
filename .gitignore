@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+# 실행 시 생성되는 파일 (sample_data는 tools/make_sample_data.py로 재생성)
+.pccleaner/
+output/
+sample_data/
+docs/slides/preview/
+.idea/
