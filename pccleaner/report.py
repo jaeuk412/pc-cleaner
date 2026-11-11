@@ -12,6 +12,7 @@ from .scanner import ScanResult
 from .temp_finder import TempFile
 from .utils import human_size
 
+# SVG 막대 그래프에서 항목별로 순환하며 사용할 색상 팔레트
 PALETTE = ["#2563eb", "#0891b2", "#16a34a", "#ca8a04", "#ea580c", "#dc2626", "#9333ea", "#64748b"]
 
 
@@ -19,15 +20,18 @@ def _bar_chart(items: list[tuple[str, int]], title: str) -> str:
     """가로 막대 그래프 SVG."""
     if not items:
         return "<p class='muted'>데이터 없음</p>"
+    # 각 행의 높이, 라벨 영역 너비, 막대 최대 너비, 값 텍스트 영역 너비 설정
     row_h, label_w, bar_w, val_w = 26, 170, 420, 90
     width = label_w + bar_w + val_w
     height = row_h * len(items) + 10
+    # 가장 큰 값을 기준으로 막대 길이를 비율 계산 (0으로 나누기 방지용 or 1)
     peak = max(v for _, v in items) or 1
     rows = []
     for i, (label, value) in enumerate(items):
         y = i * row_h + 5
         w = max(2, value / peak * bar_w)
         color = PALETTE[i % len(PALETTE)]
+        # 라벨이 너무 길면 말줄임표(…) 처리
         short = label if len(label) <= 22 else label[:21] + "…"
         rows.append(
             f"<text x='{label_w - 8}' y='{y + 16}' text-anchor='end' class='lbl'>{escape(short)}</text>"
@@ -51,6 +55,7 @@ def mask_home(path: Path) -> str:
 
 
 def _rel(path: Path, root: Path) -> str:
+    """스캔 루트 기준 상대 경로 문자열을 반환합니다 (루트 밖이면 전체 경로 반환)."""
     try:
         return str(path.relative_to(root))
     except ValueError:
@@ -66,6 +71,7 @@ def build_html(
     top: int = 15,
     display_root: str | None = None,
 ) -> str:
+    """스캔 및 분석 결과를 시각화된 단일 HTML 문서 문자열로 생성합니다."""
     root = scan.root
     # 공유용 리포트에 PC 사용자 이름이 드러나지 않도록 표시 경로를 바꿀 수 있습니다.
     root_label = display_root or mask_home(root)
@@ -74,12 +80,15 @@ def build_html(
     reclaim = sum(a.size for a in actions)
     total = scan.total_size or 1
 
+    # 확장자별 용량 상위 8개를 추리고 나머지는 '기타'로 합산
     ext_items = list(scan.by_extension().items())
     ext_chart = [(k, v[1]) for k, v in ext_items[:8]]
     if len(ext_items) > 8:
         ext_chart.append(("기타", sum(v[1] for _, v in ext_items[8:])))
+    # 상위 폴더별 용량 상위 10개 추출
     dir_chart = list(scan.by_top_dir().items())[:10]
 
+    # 상단 요약 카드 4종 구성
     cards = [
         ("전체 용량", human_size(scan.total_size), f"파일 {len(scan.files):,}개"),
         ("중복 파일 낭비", human_size(dup_waste), f"{len(duplicates)}개 그룹"),
@@ -91,6 +100,7 @@ def build_html(
         for k, v, s in cards
     )
 
+    # 대용량 파일, 중복 파일 그룹, 오래된 임시 파일 테이블 행(row) HTML 생성
     large_rows = "".join(
         f"<tr><td>{escape(_rel(f.path, root))}</td><td class='num'>{human_size(f.size)}</td>"
         f"<td>{datetime.fromtimestamp(f.mtime):%Y-%m-%d}</td></tr>"
@@ -111,6 +121,7 @@ def build_html(
     if scan.errors:
         err_html = f"<p class='muted'>접근하지 못한 경로 {len(scan.errors)}개는 건너뛰었습니다.</p>"
 
+    # 다크 모드를 지원하는 반응형 스타일시트와 함께 전체 HTML 조립
     return f"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PC 용량 분석 리포트</title>
@@ -158,6 +169,7 @@ code {{ background:var(--line); padding:1px 5px; border-radius:4px; }}
 def build_json(
     scan: ScanResult, duplicates: list[DuplicateGroup], temps: list[TempFile], actions: list[CleanAction]
 ) -> str:
+    """스캔 결과, 중복/임시 파일 목록, 정리 계획을 JSON 문자열로 직렬화하여 반환합니다."""
     data = {
         "root": str(scan.root),
         "generated": datetime.now().isoformat(timespec="seconds"),

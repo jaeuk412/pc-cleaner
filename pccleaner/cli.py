@@ -31,19 +31,24 @@ from .scanner import scan
 from .temp_finder import find_old_temp_files
 from .utils import human_size
 
+# 격리 폴더 및 세션 메타데이터가 저장되는 기본 작업 디렉터리
 DEFAULT_WORKDIR = Path(".pccleaner")
 
 
 def _quarantine_root(args) -> Path:
+    """CLI 인자에서 작업 디렉터리(workdir) 하위의 격리 폴더(quarantine) 경로를 반환합니다."""
     return Path(args.workdir) / "quarantine"
 
 
 def _analyze(args):
+    """지정된 폴더를 스캔하고 중복 파일, 오래된 임시 파일 및 정리 계획을 생성합니다."""
     workdir = Path(args.workdir).resolve()
+    # 작업 디렉터리(격리 폴더) 자체는 스캔 대상에서 제외합니다.
     result = scan(args.root, exclude_paths=[workdir])
     print(f"[스캔] {result.root}  파일 {len(result.files):,}개, {human_size(result.total_size)}")
     if result.errors:
         print(f"  접근 불가 {len(result.errors)}개 건너뜀")
+    # 옵션에 따라 중복 파일 탐색 및 오래된 임시 파일 탐색 수행
     dups = [] if getattr(args, "no_duplicates", False) else find_duplicates(result.files, args.min_size, result.errors)
     temps = (
         []
@@ -55,6 +60,7 @@ def _analyze(args):
 
 
 def _print_summary(result, dups, temps, actions, top: int) -> None:
+    """스캔 및 분석 요약 결과(중복 파일, 임시 파일, 확보 가능 용량)를 콘솔에 출력합니다."""
     root = result.root
     rel = lambda p: str(Path(p).relative_to(root)) if str(p).startswith(str(root)) else str(p)  # noqa: E731
     print(f"\n[중복 파일] {len(dups)}개 그룹, 낭비 {human_size(sum(g.wasted for g in dups))}")
@@ -69,6 +75,7 @@ def _print_summary(result, dups, temps, actions, top: int) -> None:
 
 
 def cmd_scan(args) -> int:
+    """`scan` 서브커맨드 핸들러: 폴더 용량 분석 후 콘솔 출력 및 HTML/JSON 리포트를 저장합니다."""
     result, dups, temps, actions = _analyze(args)
     _print_summary(result, dups, temps, actions, args.top)
     if args.report:
@@ -84,11 +91,13 @@ def cmd_scan(args) -> int:
 
 
 def cmd_clean(args) -> int:
+    """`clean` 서브커맨드 핸들러: 중복/임시 파일을 미리보거나(--apply 없을 때) 격리 폴더로 이동합니다."""
     result, dups, temps, actions = _analyze(args)
     _print_summary(result, dups, temps, actions, args.top)
     if not actions:
         print("\n정리할 파일이 없습니다.")
         return 0
+    # --apply 플래그가 없으면 실제 파일 이동 없이 미리보기(dry-run)만 수행합니다.
     if not args.apply:
         print("\n※ 미리보기(dry-run)입니다. 실제로 정리하려면 --apply 를 붙이세요.")
         return 0
@@ -103,6 +112,7 @@ def cmd_clean(args) -> int:
 
 
 def _resolve_session(args) -> Path | None:
+    """사용자가 지정한 세션 경로 또는 가장 최근의 격리 세션 경로를 반환합니다."""
     if args.session:
         return Path(args.session)
     sessions = list_sessions(_quarantine_root(args))
@@ -110,6 +120,7 @@ def _resolve_session(args) -> Path | None:
 
 
 def cmd_undo(args) -> int:
+    """`undo` 서브커맨드 핸들러: 격리된 파일들을 원래 경로로 복구합니다."""
     session = _resolve_session(args)
     if session is None:
         print("되돌릴 정리 기록이 없습니다.")
@@ -122,6 +133,7 @@ def cmd_undo(args) -> int:
 
 
 def cmd_sessions(args) -> int:
+    """`sessions` 서브커맨드 핸들러: 현재 보관 중인 격리 세션 목록과 상태를 출력합니다."""
     sessions = list_sessions(_quarantine_root(args))
     if not sessions:
         print("격리된 정리 기록이 없습니다.")
@@ -135,6 +147,7 @@ def cmd_sessions(args) -> int:
 
 
 def cmd_purge(args) -> int:
+    """`purge` 서브커맨드 핸들러: 지정된 세션 또는 오래된 격리 세션을 영구 삭제하여 디스크 용량을 확보합니다."""
     if args.session:
         targets = [Path(args.session)]
     elif args.older_than is not None:
@@ -145,6 +158,7 @@ def cmd_purge(args) -> int:
     if not targets:
         print("삭제할 격리 세션이 없습니다.")
         return 0
+    # 실수로 영구 삭제하는 것을 막기 위해 --yes 플래그를 확인합니다.
     if not args.yes:
         print("다음 격리 세션을 영구 삭제합니다(복구 불가). 실행하려면 --yes 를 붙이세요.")
         for t in targets:
@@ -160,6 +174,7 @@ def cmd_purge(args) -> int:
 
 
 def cmd_backup(args) -> int:
+    """`backup` 서브커맨드 핸들러: 원본 폴더를 zip으로 압축 백업하고 오래된 백업을 정리합니다."""
     res = create_backup(args.source, args.dest, keep=args.keep)
     ratio = res.archive_size / res.original_size * 100 if res.original_size else 0
     print(f"[백업] {res.archive}")
@@ -187,11 +202,13 @@ def cmd_schedule(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """CLI 명령어와 서브커맨드(scan, clean, undo, sessions, purge, backup, schedule) 파서를 구성합니다."""
     p = argparse.ArgumentParser(prog="pccleaner", description="PC 용량 확보 및 백업 자동화 도구")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--workdir", default=str(DEFAULT_WORKDIR), help="격리 폴더/기록 저장 위치 (기본: ./.pccleaner)")
     sub = p.add_subparsers(dest="command", required=True)
 
+    # scan과 clean 서브커맨드에서 공통으로 사용하는 분석 옵션 등록 헬퍼
     def add_analysis_opts(sp):
         sp.add_argument("root", help="분석할 폴더")
         sp.add_argument("--age-days", type=int, default=30, help="임시 파일 판정 기준 경과 일수 (기본 30)")
@@ -242,6 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI 진입점 함수: 인자를 파싱하고 선택된 서브커맨드 핸들러를 실행합니다."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")  # 콘솔 인코딩 문제로 죽지 않도록
