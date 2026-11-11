@@ -151,7 +151,28 @@ pccleaner/
 
 ---
 
-## 5단계. 검증 결과
+## 5단계. GitHub 업로드
+
+핵심 프롬프트를 3개로 정리한 뒤, 제출용 공개 저장소에 올렸습니다.
+저장소: https://github.com/jaeuk412/pc-cleaner
+
+| 순서 | 한 일 | 문제와 해결 |
+|---|---|---|
+| 1. 환경 확인 | `git --version` 2.51 확인 | git 작성자 정보가 설정되어 있지 않았고 GitHub CLI(`gh`)도 없었음 → 작성자 정보를 사람이 정해 알려 주고, 저장소는 GitHub 웹에서 직접 생성 |
+| 2. 저장소 초기화 | `git init -b main`, 올라갈 파일 목록과 크기 검토, 공개 파일에 PC 사용자명이 없는지 `git grep`으로 확인 | PyCharm 설정 폴더 `.idea/`가 포함됨 → 개인 환경 설정이라 `.gitignore`에 추가하고 제외 |
+| 3. 작성자 설정 | `git config user.name / user.email` | PC 전체 설정(`--global`)이 아니라 **이 저장소에만** 설정 |
+| 4. 첫 커밋 | 파일 32개 커밋 | PowerShell here-string으로 여러 줄 메시지를 넘기자 git이 메시지를 파일 이름으로 해석해 실패 → 메시지를 파일로 저장하고 `git commit -F`로 해결 |
+| 5. 원격 확인 | `git remote add origin ...`, `git ls-remote`로 저장소가 존재하고 비어 있는지 확인 | 빈 저장소여야 README·.gitignore 충돌이 없음 |
+| 6. push | `git push -u origin main` | 에이전트의 셸은 비대화형이라 GitHub 로그인 창을 띄우지 못해 실패(`Cannot prompt because user interactivity has been disabled`) → 앱의 터미널 탭에서 다시 실행하고, 브라우저 인증은 **사람이 직접 승인** |
+| 7. 확인 | GitHub API로 원격 커밋이 로컬과 같은지, 저장소가 **Public**인지 확인 | 비공개면 과제가 미제출 처리될 수 있으므로 공개 여부를 꼭 확인 |
+| 8. CI | push와 동시에 GitHub Actions가 자동 실행 | 결과: lint와 테스트 4개 환경(Ubuntu·Windows × Python 3.10·3.13) **모두 통과** |
+
+- **배운 점:** 로그인, 저장소 생성, 공개 범위처럼 **계정과 권한이 걸린 단계는 사람이 직접** 하고,
+  LLM은 명령 실행과 결과 검증을 맡는 방식이 안전했습니다.
+
+---
+
+## 6단계. 검증 결과
 
 | 항목 | 결과 |
 |---|---|
@@ -160,5 +181,5 @@ pccleaner/
 | 샘플 스캔 | 26개 파일, 20.7 MB 중 중복 4그룹(9.1 MB), 오래된 임시 파일 7개(1.7 MB) 탐지 |
 | clean → undo | 12개 파일 격리 후 12개 모두 원위치 복구 |
 | backup `--keep 2` 3회 실행 | 최신 2개만 남고 가장 오래된 백업 자동 삭제 |
-| CI | GitHub Actions: Windows/Ubuntu × Python 3.10/3.13 매트릭스 구성 (GitHub 업로드 후 실행 예정) |
+| CI | GitHub Actions: lint + Windows/Ubuntu × Python 3.10/3.13 테스트 모두 통과 |
 | 발표 자료 | 9장 PPTX, 스키마 검증 통과, 미리보기로 넘침·겹침 확인 (실제 PowerPoint 화면은 미확인) |
