@@ -89,7 +89,33 @@ pip install -r requirements.txt
 
 > Windows에서 `python`을 입력하면 Microsoft Store가 열리면 `py -m venv .venv`를 사용하세요.
 
-## 4. 바로 테스트해 보기 (샘플 데이터)
+## 4. 기능 테스트 실행 (pytest 13개)
+
+환경 설정을 마쳤다면 가상환경이 활성화된 상태에서 아래 명령을 실행합니다.
+
+```bash
+python -m pytest -v
+```
+
+환경설정 점검용이 아니라 **PC Cleaner의 각 기능이 올바르게 동작하는지 자동으로 확인하는 테스트**입니다.
+각 테스트는 임시 폴더(`tmp_path`)에서만 실행되므로 실제 PC 파일은 건드리지 않습니다.
+13개가 모두 `passed`이면 설치가 정상이라는 것도 함께 확인되므로, 다음 단계인 샘플 실습으로 넘어가면 됩니다.
+
+| 확인하는 기능 | 테스트 예시 |
+|---|---|
+| 용량 표시 | `test_human_size`: 바이트를 KB/MB 등 읽기 쉬운 단위로 바꿔 주는지 |
+| 스캔 | `test_scan_excludes_default_dirs`: 제외해야 할 기본 폴더를 건너뛰는지 |
+| 중복 파일 찾기 | `test_duplicates_keep_oldest_and_ignore_same_size_different_content`: 가장 오래된 파일을 남기고, 크기만 같고 내용이 다른 파일은 중복으로 잡지 않는지 |
+| 임시 파일 찾기 | `test_temp_files_by_age_and_pattern`, `test_temp_dir_check_uses_relative_path`: 오래된 파일과 패턴에 맞는 파일을 골라내는지 |
+| 정리와 되돌리기 | `test_clean_undo_roundtrip`, `test_clean_skips_changed_file_and_missing_original`, `test_undo_does_not_overwrite`: `clean` 후 `undo`로 복구되는지, 기존 파일을 덮어쓰지 않는지 |
+| 휴지통 비우기 | `test_purge_frees_space`: `purge`로 실제 공간이 확보되는지 |
+| 백업 | `test_backup_retention_and_integrity`, `test_backup_dest_inside_source`: 보관 개수와 무결성을 지키는지, 백업 위치가 원본 안이면 막는지 |
+| CLI 전체 흐름 | `test_cli_end_to_end`: `main.py` 명령이 처음부터 끝까지 동작하는지 |
+| 샘플 생성기 | `test_sample_generator_refuses_non_sample_folder`: 샘플 폴더가 아닌 곳에는 파일을 만들지 않는지 |
+
+> 가상환경을 활성화하지 않았다면 `.venv\Scripts\python.exe -m pytest -v`(Windows)로 실행하세요.
+
+## 5. 바로 테스트해 보기 (샘플 데이터)
 
 ```bash
 python tools/make_sample_data.py
@@ -133,11 +159,6 @@ python main.py backup sample_data/work --dest output/backups --keep 3
 python main.py schedule --source sample_data/work --dest output/backups --time 09:00
 ```
 
-**테스트 실행**
-```bash
-python -m pytest -v
-```
-
 ### 실행 결과 예시
 
 ```
@@ -156,7 +177,7 @@ python -m pytest -v
 [확보 가능 용량] 10.9 MB (파일 12개)
 ```
 
-## 5. 주요 옵션
+## 6. 주요 옵션
 
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
@@ -169,7 +190,7 @@ python -m pytest -v
 
 `.git`, `.venv`, `node_modules`, `$RECYCLE.BIN` 등은 자동으로 스캔에서 제외되고, 심볼릭 링크는 따라가지 않습니다.
 
-## 6. 개발 과정: LLM 활용 요약
+## 7. 개발 과정: LLM 활용 요약
 
 **Claude Code**(Claude Opus 5.5)를 개발 도구로 사용했습니다. 완성된 프로그램은 LLM 없이 동작합니다.
 전체 기록은 [docs/prompt_log.md](docs/prompt_log.md)에 있습니다.
@@ -195,7 +216,7 @@ python -m pytest -v
 | 스캔 후 파일이 바뀌거나 중복 원본이 사라지는 경우 | 실행 직전 재확인, undo는 덮어쓰지 않음 |
 | 공개 리포트 캡처에 PC 사용자 이름 노출 | `--display-root` 옵션, 기본은 홈 폴더를 `~`로 가림 |
 
-## 7. 주의 사항
+## 8. 주의 사항
 
 - 처음에는 반드시 샘플 데이터나 중요하지 않은 폴더로 시험하세요.
 - `purge`는 복구할 수 없습니다. 격리 상태로 며칠 사용해 본 뒤 `purge --older-than 14 --yes`처럼 쓰는 것을 권장합니다.
